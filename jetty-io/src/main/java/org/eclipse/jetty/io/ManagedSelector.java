@@ -42,6 +42,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.eclipse.jetty.util.IO;
 import org.eclipse.jetty.util.annotation.ManagedAttribute;
@@ -90,6 +91,7 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
     private Deque<SelectorUpdate> _updates = new ArrayDeque<>();
     private Deque<SelectorUpdate> _updateable = new ArrayDeque<>();
     private final SampleStatistic _keyStats = new SampleStatistic();
+    private AtomicInteger noSelectCount;
 
     public ManagedSelector(SelectorManager selectorManager, int id)
     {
@@ -179,6 +181,29 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
     }
 
     protected int nioSelect(Selector selector, boolean now) throws IOException
+    {
+        int selected = unchangednioSelect(selector, now);
+        if (selected == 0)
+        {
+            // Count consecutive no-selects
+            if (noSelectCount.incrementAndGet() > 1024)
+            {
+                // we exceeded the maximum consecutive no-select count
+                // Trigger the selector rebuilding built into Jetty, via it's error handling
+                handleSelectFailure(selector, new IOException("Rebuilding Selector: " + selector));
+                // reset count
+                noSelectCount.set(0);
+            }
+        }
+        else if (selected > 0)
+        {
+            // rest
+            noSelectCount.set(0);
+        }
+        return selected;
+    }
+
+    private int unchangednioSelect(Selector selector, boolean now) throws IOException
     {
         return now ? selector.selectNow() : selector.select();
     }
