@@ -91,7 +91,7 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
     private Deque<SelectorUpdate> _updates = new ArrayDeque<>();
     private Deque<SelectorUpdate> _updateable = new ArrayDeque<>();
     private final SampleStatistic _keyStats = new SampleStatistic();
-    private AtomicInteger noSelectCount;
+    private AtomicInteger noSelectCount = new AtomicInteger();
 
     public ManagedSelector(SelectorManager selectorManager, int id)
     {
